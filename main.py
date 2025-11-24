@@ -4,7 +4,9 @@ import sys
 pygame.init()
 
 # Window
-screen = pygame.display.set_mode((400, 300))
+screen = pygame.display.set_mode((600, 400))
+background = pygame.image.load("../asset/grass.jpg")
+screen.blit(background, (0, 0))
 clock = pygame.time.Clock()
 
 # Load the spritesheet
@@ -48,18 +50,25 @@ class Llama(pygame.sprite.Sprite):
 
 
 # Create a llama sprite
-llama = Llama(200, 150, frames=frames[4:8])
+llama = Llama(300, 200, frames=frames[4:8])
 all_sprites = pygame.sprite.Group(llama)
-
+last_move_time = 0  # stores the last time the sprite moved
+move_interval = 2000 
 # Game loop
+timestamp = 0
 while True:
+    current_time = pygame.time.get_ticks()
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
 
+    if current_time - last_move_time >= move_interval:
+        llama.rect.x += 10  # move right by 10 pixels (adjust as needed)
+        last_move_time = current_time
+    screen.fill((0, 0, 0))  # clear screen
+    screen.blit(background,(0,0))
     all_sprites.update()
-    screen.fill((30, 30, 30))
     all_sprites.draw(screen)
 
     pygame.display.flip()
