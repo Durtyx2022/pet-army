@@ -1,5 +1,5 @@
-import random
 import sys
+from typing import Tuple
 
 import pygame
 
@@ -50,7 +50,7 @@ class Unit(pygame.sprite.Sprite):
         self.index = 0
         self.image = self.frames[0]
         self.rect = self.image.get_rect(center=(x, y))
-
+        self.target_position = (x, y)
         self.animation_speed = 0.1
 
     def update(self):
@@ -59,6 +59,19 @@ class Unit(pygame.sprite.Sprite):
         if self.index >= len(self.frames):
             self.index = 0
         self.image = self.frames[int(self.index)]
+        self.move_towards_target()
+
+    def move_towards_target(self):
+        current_x, current_y = self.rect.center
+        target_x, target_y = self.target_position
+        if abs(target_x - current_x) < 5 and abs(target_y - current_y) < 5:
+            return
+        next_x = current_x + (4 if target_x > current_x else -4)
+        next_y = current_y + (4 if target_y > current_y else -4)
+        self.rect.center = (next_x, next_y)
+
+    def set_target_position(self, position: Tuple[int, int]):
+        self.target_position = position
 
 
 # CREATE UNITS
@@ -67,7 +80,7 @@ cow = Unit(500, 300, cow_frames)
 
 units = pygame.sprite.Group(llama, cow)
 
-selected_unit = None
+selected_unit: Unit | None = None
 
 
 # -------------------------------
@@ -94,7 +107,7 @@ while True:
 
             # If click NOT on a unit → teleport selected one
             if not clicked_on_unit and selected_unit != None:
-                selected_unit.rect.center = mouse_pos
+                selected_unit.set_target_position(mouse_pos)
 
     # update animation
     units.update()
