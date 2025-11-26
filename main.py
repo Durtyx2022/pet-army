@@ -1,18 +1,22 @@
-import pygame
+import random
 import sys
+
+import pygame
 
 pygame.init()
 
 # Window
-screen = pygame.display.set_mode((600, 400))
+screen = pygame.display.set_mode((800, 800))
 background = pygame.image.load("../asset/grass.jpg")
+background = pygame.transform.scale(background, (800, 800))
+pygame.display.set_caption("Pets Army")
 clock = pygame.time.Clock()
 
 # -------------------------------
 # LOAD BOTH SPRITESHEETS 🔥
 # -------------------------------
 llama_sheet = pygame.image.load("../asset/llama_walk.png").convert_alpha()
-cow_sheet   = pygame.image.load("../asset/cow_walk.png").convert_alpha()
+cow_sheet = pygame.image.load("../asset/cow_walk.png").convert_alpha()
 
 COLUMNS = 4
 ROWS = 4
@@ -22,7 +26,7 @@ FRAME_H = llama_sheet.get_height() // ROWS
 
 
 # FRAME CUTTING FUNCTION
-def cut_frames(sheet):
+def cut_frames(sheet: pygame.Surface) -> list[pygame.Surface]:
     frames = []
     for r in range(ROWS):
         for c in range(COLUMNS):
@@ -33,14 +37,14 @@ def cut_frames(sheet):
 
 
 llama_frames = cut_frames(llama_sheet)
-cow_frames   = cut_frames(cow_sheet)
+cow_frames = cut_frames(cow_sheet)
 
 
 # -------------------------------
 # SPRITE CLASSES 🔥
 # -------------------------------
 class Unit(pygame.sprite.Sprite):
-    def __init__(self, x, y, frames):
+    def __init__(self, x, y, frames: list[pygame.Surface]):
         super().__init__()
         self.frames = frames[4:8]  # walking cycle
         self.index = 0
@@ -59,7 +63,7 @@ class Unit(pygame.sprite.Sprite):
 
 # CREATE UNITS
 llama = Unit(300, 200, llama_frames)
-cow   = Unit(500, 300, cow_frames)
+cow = Unit(500, 300, cow_frames)
 
 units = pygame.sprite.Group(llama, cow)
 
@@ -79,7 +83,6 @@ while True:
 
         # 🖱️ LEFT CLICK = SELECT OR TELEPORT
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-
             clicked_on_unit = False
 
             # Check if click hits a unit
@@ -102,13 +105,7 @@ while True:
 
     # Draw selection circle 🟢
     if selected_unit:
-        pygame.draw.circle(
-            screen,
-            (0, 255, 0),
-            selected_unit.rect.midbottom,
-            10,
-            2
-        )
+        pygame.draw.circle(screen, (0, 255, 0), selected_unit.rect.midbottom, 10, 2)
 
     pygame.display.flip()
     clock.tick(60)
