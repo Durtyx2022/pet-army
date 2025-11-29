@@ -13,7 +13,7 @@ pygame.display.set_caption("Pets Army")
 clock = pygame.time.Clock()
 
 # -------------------------------
-# LOAD BOTH SPRITESHEETS 🔥
+# LOAD SPRITESHEETS
 # -------------------------------
 llama_sheet = pygame.image.load("../asset/llama_walk.png").convert_alpha()
 cow_sheet = pygame.image.load("../asset/cow_walk.png").convert_alpha()
@@ -25,7 +25,6 @@ FRAME_W = llama_sheet.get_width() // COLUMNS
 FRAME_H = llama_sheet.get_height() // ROWS
 
 
-# FRAME CUTTING FUNCTION
 def cut_frames(sheet: pygame.Surface) -> list[pygame.Surface]:
     frames = []
     for r in range(ROWS):
@@ -41,7 +40,7 @@ cow_frames = cut_frames(cow_sheet)
 
 
 # -------------------------------
-# SPRITE CLASSES 🔥
+# UNIT CLASS 🔥
 # -------------------------------
 class Unit(pygame.sprite.Sprite):
     def __init__(self, x, y, frames: list[pygame.Surface]):
@@ -54,27 +53,42 @@ class Unit(pygame.sprite.Sprite):
         self.animation_speed = 0.1
 
     def update(self):
-        # animation
-        self.index += self.animation_speed
+        right_click = pygame.mouse.get_pressed()[2]
+
+        # animation boost
+        if right_click:
+            self.index += self.animation_speed * 2
+        else:
+            self.index += self.animation_speed
+
         if self.index >= len(self.frames):
             self.index = 0
-        self.image = self.frames[int(self.index)]
-        self.move_towards_target()
 
-    def move_towards_target(self):
+        self.image = self.frames[int(self.index)]
+        self.move_towards_target(right_click)
+
+    def move_towards_target(self, boosted):
         current_x, current_y = self.rect.center
         target_x, target_y = self.target_position
+
+        # close enough
         if abs(target_x - current_x) < 5 and abs(target_y - current_y) < 5:
             return
-        next_x = current_x + (4 if target_x > current_x else -4)
-        next_y = current_y + (4 if target_y > current_y else -4)
+
+        speed = 4
+        if boosted:
+            speed = 7  # right click = faster
+
+        next_x = current_x + (speed if target_x > current_x else -speed)
+        next_y = current_y + (speed if target_y > current_y else -speed)
+
         self.rect.center = (next_x, next_y)
 
     def set_target_position(self, position: Tuple[int, int]):
         self.target_position = position
 
 
-# CREATE UNITS
+# MAKE UNITS
 llama = Unit(300, 200, llama_frames)
 cow = Unit(500, 300, cow_frames)
 
@@ -84,7 +98,7 @@ selected_unit: Unit | None = None
 
 
 # -------------------------------
-# GAME LOOP 🔥💯
+# GAME LOOP 🔥
 # -------------------------------
 while True:
     mouse_pos = pygame.mouse.get_pos()
@@ -94,29 +108,61 @@ while True:
             pygame.quit()
             sys.exit()
 
-        # 🖱️ LEFT CLICK = SELECT OR TELEPORT
+        # ESC to close
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                pygame.quit()
+                sys.exit()
+
+        # LEFT CLICK → select or move
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             clicked_on_unit = False
-
-            # Check if click hits a unit
             for unit in units:
                 if unit.rect.collidepoint(mouse_pos):
                     selected_unit = unit
                     clicked_on_unit = True
                     break
 
-            # If click NOT on a unit → teleport selected one
-            if not clicked_on_unit and selected_unit != None:
+            if not clicked_on_unit and selected_unit:
                 selected_unit.set_target_position(mouse_pos)
 
-    # update animation
+    # -------------------------
+    # KEYBOARD MOVEMENT (WASD)
+    # -------------------------
+    keys = pygame.key.get_pressed()
+    move_speed = 4
+
+    # right mouse = speed boost
+    if pygame.mouse.get_pressed()[2]:
+        move_speed = 7
+
+    if selected_unit:
+        moving_with_keys = False
+        if keys[pygame.K_w]:
+            selected_unit.rect.y -= move_speed
+            moving_with_keys = True
+        if keys[pygame.K_s]:
+            selected_unit.rect.y += move_speed
+            moving_with_keys = True
+        if keys[pygame.K_a]:
+            selected_unit.rect.x -= move_speed
+            moving_with_keys = True
+        if keys[pygame.K_d]:
+            selected_unit.rect.x += move_speed
+            moving_with_keys = True
+
+        # prevent mouse movement from fighting keyboard
+        if moving_with_keys:
+            selected_unit.target_position = selected_unit.rect.center
+
+    # UPDATE
     units.update()
 
     # DRAW
     screen.blit(background, (0, 0))
     units.draw(screen)
 
-    # Draw selection circle 🟢
+    # selection circle
     if selected_unit:
         pygame.draw.circle(screen, (0, 255, 0), selected_unit.rect.midbottom, 10, 2)
 
