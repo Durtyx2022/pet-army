@@ -9,6 +9,8 @@ pygame.init()
 screen = pygame.display.set_mode((800, 800))
 background = pygame.image.load("../asset/grass.jpg")
 background = pygame.transform.scale(background, (1280, 1280))
+global_center_x = 800 // 2
+global_center_y = 800 // 2
 pygame.display.set_caption("Pets Army")
 clock = pygame.time.Clock()
 
@@ -144,6 +146,7 @@ while True:
     if pygame.mouse.get_pressed()[2]:
         move_speed = 7
 
+    # move camera with keys
     for unit in units:
         moving_with_keys = False
         if keys[pygame.K_w]:
@@ -160,6 +163,35 @@ while True:
             moving_with_keys = True
         if isinstance(unit, Unit) and moving_with_keys:
             unit.set_target_position(unit.rect.center)
+
+    # move selected unit with keys
+    if selected_unit is not None:
+        moving_with_keys = False
+        if keys[pygame.K_w]:
+            moving_with_keys = True
+            selected_unit.rect.y -= move_speed
+        if keys[pygame.K_s]:
+            moving_with_keys = True
+            selected_unit.rect.y += move_speed
+        if keys[pygame.K_a]:
+            moving_with_keys = True
+            selected_unit.rect.x -= move_speed
+        if keys[pygame.K_d]:
+            moving_with_keys = True
+            selected_unit.rect.x += move_speed
+        if selected_unit and moving_with_keys:
+            selected_unit.set_target_position(selected_unit.rect.center)
+
+        # keep selected unit centered camera
+        selected_unit_x, selected_unit_y = selected_unit.rect.center
+        change_x = global_center_x - selected_unit_x
+        change_y = global_center_y - selected_unit_y
+        if abs(change_x) > 50 and abs(change_y) > 50:
+            for unit in units:
+                unit.rect.y += change_y
+                unit.rect.x += change_x
+                if isinstance(unit, Unit):
+                    unit.set_target_position(unit.rect.center)
 
     # UPDATE
     units.update()
