@@ -8,7 +8,7 @@ pygame.init()
 # Window
 screen = pygame.display.set_mode((800, 800))
 background = pygame.image.load("../asset/grass.jpg")
-background = pygame.transform.scale(background, (800, 800))
+background = pygame.transform.scale(background, (1280, 1280))
 pygame.display.set_caption("Pets Army")
 clock = pygame.time.Clock()
 
@@ -60,7 +60,6 @@ class Unit(pygame.sprite.Sprite):
             self.index += self.animation_speed * 2
         else:
             self.index += self.animation_speed
-
         if self.index >= len(self.frames):
             self.index = 0
 
@@ -88,11 +87,19 @@ class Unit(pygame.sprite.Sprite):
         self.target_position = position
 
 
+class Background(pygame.sprite.Sprite):
+    def __init__(self, x, y, image: pygame.Surface):
+        super().__init__()
+        self.image = image
+        self.rect = self.image.get_rect(center=(x, y))
+
+
 # MAKE UNITS
 llama = Unit(300, 200, llama_frames)
 cow = Unit(500, 300, cow_frames)
+background_sprite = Background(0, 0, background)
 
-units = pygame.sprite.Group(llama, cow)
+units = pygame.sprite.Group(background_sprite, llama, cow)
 
 selected_unit: Unit | None = None
 
@@ -118,10 +125,11 @@ while True:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             clicked_on_unit = False
             for unit in units:
-                if unit.rect.collidepoint(mouse_pos):
-                    selected_unit = unit
-                    clicked_on_unit = True
-                    break
+                if isinstance(unit, Unit):
+                    if unit.rect.collidepoint(mouse_pos):
+                        selected_unit = unit
+                        clicked_on_unit = True
+                        break
 
             if not clicked_on_unit and selected_unit:
                 selected_unit.set_target_position(mouse_pos)
@@ -136,30 +144,28 @@ while True:
     if pygame.mouse.get_pressed()[2]:
         move_speed = 7
 
-    if selected_unit:
+    for unit in units:
         moving_with_keys = False
         if keys[pygame.K_w]:
-            selected_unit.rect.y -= move_speed
+            unit.rect.y += move_speed
             moving_with_keys = True
         if keys[pygame.K_s]:
-            selected_unit.rect.y += move_speed
+            unit.rect.y -= move_speed
             moving_with_keys = True
         if keys[pygame.K_a]:
-            selected_unit.rect.x -= move_speed
+            unit.rect.x += move_speed
             moving_with_keys = True
         if keys[pygame.K_d]:
-            selected_unit.rect.x += move_speed
+            unit.rect.x -= move_speed
             moving_with_keys = True
-
-        # prevent mouse movement from fighting keyboard
-        if moving_with_keys:
-            selected_unit.target_position = selected_unit.rect.center
+        if isinstance(unit, Unit) and moving_with_keys:
+            unit.set_target_position(unit.rect.center)
 
     # UPDATE
     units.update()
 
     # DRAW
-    screen.blit(background, (0, 0))
+    screen.fill((0, 0, 0))
     units.draw(screen)
 
     # selection circle
