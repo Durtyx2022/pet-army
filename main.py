@@ -1,18 +1,37 @@
 import sys
 from typing import Tuple
-
 import pygame
 
 pygame.init()
 
-# Window
-screen = pygame.display.set_mode((800, 800))
-background = pygame.image.load("../asset/grass.jpg")
-background = pygame.transform.scale(background, (1280, 1280))
-global_center_x = 800 // 2
-global_center_y = 800 // 2
+# -------------------------------
+# WINDOW + CLOCK
+# -------------------------------
+WIDTH, HEIGHT = 800, 800
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Pets Army")
 clock = pygame.time.Clock()
+
+# -------------------------------
+# LOAD BACKGROUND
+# -------------------------------
+background = pygame.image.load("../asset/grass.jpg")
+background = pygame.transform.scale(background, (1280, 1280))
+
+# -------------------------------
+# CAMERA
+# -------------------------------
+camera_x = 0
+camera_y = 0
+camera_target_x = 0
+camera_target_y = 0
+CAMERA_SPEED = 15  # cinematic smoothness
+
+# -------------------------------
+# DOUBLE CLICK DETECTION
+# -------------------------------
+last_click_time = 0
+DOUBLE_CLICK_DELAY = 300  # ms
 
 # -------------------------------
 # LOAD SPRITESHEETS
@@ -22,30 +41,25 @@ cow_sheet = pygame.image.load("../asset/cow_walk.png").convert_alpha()
 
 COLUMNS = 4
 ROWS = 4
-
 FRAME_W = llama_sheet.get_width() // COLUMNS
 FRAME_H = llama_sheet.get_height() // ROWS
 
-
-def cut_frames(sheet: pygame.Surface) -> list[pygame.Surface]:
+def cut_frames(sheet):
     frames = []
     for r in range(ROWS):
         for c in range(COLUMNS):
             rect = pygame.Rect(c * FRAME_W, r * FRAME_H, FRAME_W, FRAME_H)
-            frame = sheet.subsurface(rect)
-            frames.append(frame)
+            frames.append(sheet.subsurface(rect))
     return frames
-
 
 llama_frames = cut_frames(llama_sheet)
 cow_frames = cut_frames(cow_sheet)
 
-
 # -------------------------------
-# UNIT CLASS 🔥
+# UNIT CLASS
 # -------------------------------
 class Unit(pygame.sprite.Sprite):
-    def __init__(self, x, y, frames: list[pygame.Surface]):
+    def __init__(self, x, y, frames):
         super().__init__()
         self.frames = frames[4:8]  # walking cycle
         self.index = 0
@@ -62,6 +76,7 @@ class Unit(pygame.sprite.Sprite):
             self.index += self.animation_speed * 2
         else:
             self.index += self.animation_speed
+
         if self.index >= len(self.frames):
             self.index = 0
 
@@ -69,140 +84,153 @@ class Unit(pygame.sprite.Sprite):
         self.move_towards_target(right_click)
 
     def move_towards_target(self, boosted):
-        current_x, current_y = self.rect.center
-        target_x, target_y = self.target_position
+        x, y = self.rect.center
+        tx, ty = self.target_position
 
-        # close enough
-        if abs(target_x - current_x) < 5 and abs(target_y - current_y) < 5:
+        if abs(tx - x) < 5 and abs(ty - y) < 5:
             return
 
-        speed = 4
-        if boosted:
-            speed = 7  # right click = faster
+        speed = 7 if boosted else 4
+        x += speed if tx > x else -speed
+        y += speed if ty > y else -speed
 
-        next_x = current_x + (speed if target_x > current_x else -speed)
-        next_y = current_y + (speed if target_y > current_y else -speed)
+        self.rect.center = (x, y)
 
-        self.rect.center = (next_x, next_y)
-
-    def set_target_position(self, position: Tuple[int, int]):
-        self.target_position = position
-
-
-class Background(pygame.sprite.Sprite):
-    def __init__(self, x, y, image: pygame.Surface):
-        super().__init__()
-        self.image = image
-        self.rect = self.image.get_rect(center=(x, y))
-
-
-# MAKE UNITS
-llama = Unit(300, 200, llama_frames)
-cow = Unit(500, 300, cow_frames)
-background_sprite = Background(0, 0, background)
-
-units = pygame.sprite.Group(background_sprite, llama, cow)
-
-selected_unit: Unit | None = None
-
+    def set_target_position(self, pos: Tuple[int, int]):
+        self.target_position = pos
 
 # -------------------------------
-# GAME LOOP 🔥
+# BACKGROUND SPRITE
+# -------------------------------
+class Background(pygame.sprite.Sprite):
+    def __init__(self, x, y, img):
+        super().__init__()
+        self.image = img
+        self.rect = self.image.get_rect(topleft=(x, y))
+
+background_sprite = Background(0, 0, background)
+
+# -------------------------------
+# CREATE UNITS
+# -------------------------------
+llama = Unit(300, 200, llama_frames)
+cow = Unit(500, 300, cow_frames)
+
+units = pygame.sprite.Group(background_sprite, llama, cow)
+selected_unit: Unit | None = None
+
+# -------------------------------
+# GAME LOOP
 # -------------------------------
 while True:
     mouse_pos = pygame.mouse.get_pos()
+    world_mouse = (mouse_pos[0] - camera_x, mouse_pos[1] - camera_y)
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
 
-        # ESC to close
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_ESCAPE:
-                pygame.quit()
-                sys.exit()
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            pygame.quit()
+            sys.exit()
 
-        # LEFT CLICK → select or move
+        # ---------------------------
+        # LEFT CLICK SELECTION + DOUBLE CLICK
+        # ---------------------------
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            clicked_on_unit = False
-            for unit in units:
-                if isinstance(unit, Unit):
-                    if unit.rect.collidepoint(mouse_pos):
-                        selected_unit = unit
-                        clicked_on_unit = True
-                        break
+            now = pygame.time.get_ticks()
+            double_click = (now - last_click_time) < DOUBLE_CLICK_DELAY
+            last_click_time = now
 
-            if not clicked_on_unit and selected_unit:
-                selected_unit.set_target_position(mouse_pos)
+            clicked_unit = None
+            for unit in [u for u in units if isinstance(u, Unit)]:
+                if unit.rect.collidepoint(world_mouse):
+                    clicked_unit = unit
+                    break
 
-    # -------------------------
-    # KEYBOARD MOVEMENT (WASD)
-    # -------------------------
+            # CLICKED ON UNIT
+            if clicked_unit:
+                selected_unit = clicked_unit
+
+                # DOUBLE CLICK → move camera smoothly to center on unit
+                if double_click:
+                    camera_target_x = -selected_unit.rect.centerx + WIDTH // 2
+                    camera_target_y = -selected_unit.rect.centery + HEIGHT // 2
+
+            # CLICKED EMPTY SPACE → move selected unit
+            else:
+                if selected_unit:
+                    selected_unit.set_target_position(world_mouse)
+
+    # ---------------------------
+    # KEYBOARD MOVEMENT
+    # ---------------------------
     keys = pygame.key.get_pressed()
-    move_speed = 4
+    move_speed = 7 if pygame.mouse.get_pressed()[2] else 4
 
-    # right mouse = speed boost
-    if pygame.mouse.get_pressed()[2]:
-        move_speed = 7
-
-    # move camera with keys
-    for unit in units:
-        moving_with_keys = False
+    if selected_unit:
+        moving = False
         if keys[pygame.K_w]:
-            unit.rect.y += move_speed
-            moving_with_keys = True
-        if keys[pygame.K_s]:
-            unit.rect.y -= move_speed
-            moving_with_keys = True
-        if keys[pygame.K_a]:
-            unit.rect.x += move_speed
-            moving_with_keys = True
-        if keys[pygame.K_d]:
-            unit.rect.x -= move_speed
-            moving_with_keys = True
-        if isinstance(unit, Unit) and moving_with_keys:
-            unit.set_target_position(unit.rect.center)
-
-    # move selected unit with keys
-    if selected_unit is not None:
-        moving_with_keys = False
-        if keys[pygame.K_w]:
-            moving_with_keys = True
             selected_unit.rect.y -= move_speed
+            moving = True
         if keys[pygame.K_s]:
-            moving_with_keys = True
             selected_unit.rect.y += move_speed
+            moving = True
         if keys[pygame.K_a]:
-            moving_with_keys = True
             selected_unit.rect.x -= move_speed
+            moving = True
         if keys[pygame.K_d]:
-            moving_with_keys = True
             selected_unit.rect.x += move_speed
-        if selected_unit and moving_with_keys:
+            moving = True
+
+        if moving:
             selected_unit.set_target_position(selected_unit.rect.center)
 
-        # keep selected unit centered camera
-        selected_unit_x, selected_unit_y = selected_unit.rect.center
-        change_x = global_center_x - selected_unit_x
-        change_y = global_center_y - selected_unit_y
-        if abs(change_x) > 50 and abs(change_y) > 50:
-            for unit in units:
-                unit.rect.y += change_y
-                unit.rect.x += change_x
-                if isinstance(unit, Unit):
-                    unit.set_target_position(unit.rect.center)
+        # ---------------------------
+        # CAMERA FOLLOW BORDER (CINEMATIC)
+        # ---------------------------
+        sx, sy = selected_unit.rect.center
 
-    # UPDATE
+        # LEFT/RIGHT
+        if sx + camera_x < 200:
+            camera_target_x += 10
+        if sx + camera_x > WIDTH - 200:
+            camera_target_x -= 10
+
+        # TOP/BOTTOM
+        if sy + camera_y < 200:
+            camera_target_y += 10
+        if sy + camera_y > HEIGHT - 200:
+            camera_target_y -= 10
+
+    # ---------------------------
+    # SMOOTH CAMERA MOVE (CINEMATIC)
+    # ---------------------------
+    camera_x += (camera_target_x - camera_x) / CAMERA_SPEED
+    camera_y += (camera_target_y - camera_y) / CAMERA_SPEED
+
+    # ---------------------------
+    # UPDATE UNITS
+    # ---------------------------
     units.update()
 
-    # DRAW
+    # ---------------------------
+    # DRAW EVERYTHING WITH CAMERA OFFSET
+    # ---------------------------
     screen.fill((0, 0, 0))
-    units.draw(screen)
+    for sprite in units:
+        screen.blit(sprite.image, (sprite.rect.x + camera_x, sprite.rect.y + camera_y))
 
-    # selection circle
+    # DRAW SELECTION CIRCLE
     if selected_unit:
-        pygame.draw.circle(screen, (0, 255, 0), selected_unit.rect.midbottom, 10, 2)
+        pygame.draw.circle(
+            screen,
+            (0, 255, 0),
+            (selected_unit.rect.midbottom[0] + camera_x,
+             selected_unit.rect.midbottom[1] + camera_y),
+            10, 2
+        )
 
     pygame.display.flip()
     clock.tick(60)
