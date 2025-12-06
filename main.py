@@ -15,8 +15,8 @@ clock = pygame.time.Clock()
 # -------------------------------
 # LOAD BACKGROUND
 # -------------------------------
-background = pygame.image.load("../asset/grass.jpg")
-background = pygame.transform.scale(background, (1280, 1280))
+background = pygame.image.load("../asset/screenshot.png")
+background = pygame.transform.scale(background, (2000, 2000))
 
 # -------------------------------
 # CAMERA
@@ -44,12 +44,29 @@ ROWS = 4
 FRAME_W = llama_sheet.get_width() // COLUMNS
 FRAME_H = llama_sheet.get_height() // ROWS
 
+# -------------------------------
+# CUT FRAMES INTO 4 DIRECTIONS
+# -------------------------------
 def cut_frames(sheet):
-    frames = []
+    frames = {
+        "down": [],
+        "left": [],
+        "right": [],
+        "up": []
+    }
+
     for r in range(ROWS):
+        row_frames = []
         for c in range(COLUMNS):
             rect = pygame.Rect(c * FRAME_W, r * FRAME_H, FRAME_W, FRAME_H)
-            frames.append(sheet.subsurface(rect))
+            row_frames.append(sheet.subsurface(rect))
+
+        # 🔥 FIXED MAPPING BASED ON YOUR SHEET
+        if r == 0: frames["up"] = row_frames        # forward (W)
+        if r == 1: frames["left"] = row_frames      # left (A)
+        if r == 2: frames["down"] = row_frames      # backward (S)
+        if r == 3: frames["right"] = row_frames     # right (D)
+
     return frames
 
 llama_frames = cut_frames(llama_sheet)
@@ -61,15 +78,22 @@ cow_frames = cut_frames(cow_sheet)
 class Unit(pygame.sprite.Sprite):
     def __init__(self, x, y, frames):
         super().__init__()
-        self.frames = frames[4:8]  # walking cycle
+        self.frames = frames  # now holds dict
+        self.direction = "down"
+        self.current_frames = self.frames[self.direction]
+
         self.index = 0
-        self.image = self.frames[0]
+        self.image = self.current_frames[0]
         self.rect = self.image.get_rect(center=(x, y))
+
         self.target_position = (x, y)
         self.animation_speed = 0.1
 
     def update(self):
         right_click = pygame.mouse.get_pressed()[2]
+
+        # update directional frame set
+        self.current_frames = self.frames[self.direction]
 
         # animation boost
         if right_click:
@@ -77,10 +101,10 @@ class Unit(pygame.sprite.Sprite):
         else:
             self.index += self.animation_speed
 
-        if self.index >= len(self.frames):
+        if self.index >= len(self.current_frames):
             self.index = 0
 
-        self.image = self.frames[int(self.index)]
+        self.image = self.current_frames[int(self.index)]
         self.move_towards_target(right_click)
 
     def move_towards_target(self, boosted):
@@ -91,6 +115,13 @@ class Unit(pygame.sprite.Sprite):
             return
 
         speed = 7 if boosted else 4
+
+        # automatic directional change by target
+        if tx > x: self.direction = "right"
+        if tx < x: self.direction = "left"
+        if ty > y: self.direction = "down"
+        if ty < y: self.direction = "up"
+
         x += speed if tx > x else -speed
         y += speed if ty > y else -speed
 
@@ -172,15 +203,19 @@ while True:
     if selected_unit:
         moving = False
         if keys[pygame.K_w]:
+            selected_unit.direction = "up"
             selected_unit.rect.y -= move_speed
             moving = True
         if keys[pygame.K_s]:
+            selected_unit.direction = "down"
             selected_unit.rect.y += move_speed
             moving = True
         if keys[pygame.K_a]:
+            selected_unit.direction = "left"
             selected_unit.rect.x -= move_speed
             moving = True
         if keys[pygame.K_d]:
+            selected_unit.direction = "right"
             selected_unit.rect.x += move_speed
             moving = True
 
@@ -192,13 +227,11 @@ while True:
         # ---------------------------
         sx, sy = selected_unit.rect.center
 
-        # LEFT/RIGHT
         if sx + camera_x < 200:
             camera_target_x += 10
         if sx + camera_x > WIDTH - 200:
             camera_target_x -= 10
 
-        # TOP/BOTTOM
         if sy + camera_y < 200:
             camera_target_y += 10
         if sy + camera_y > HEIGHT - 200:
@@ -234,3 +267,4 @@ while True:
 
     pygame.display.flip()
     clock.tick(60)
+
